@@ -590,6 +590,7 @@ function hapusHasilUjian(id, btnElement){
     if(!confirm('HAPUS hasil ujian milik "'+nama+'"? Data yang dihapus tidak bisa dikembalikan.'))return;
     dbPAJ.collection('exam_results').doc(id).delete().then(function(){
         showToast('Hasil ujian berhasil dihapus!','success');
+        renderKoreksiList(); // Refresh tabel setelah hapus
     }).catch(function(e){
         showToast('Gagal menghapus: '+e.message,'error');
     });
@@ -719,12 +720,58 @@ function closeKoreksiModal(){
 }
 
 function simpanKoreksiNilai(){
-    if(!currentKoreksiId) return; var r = results.find(function(x){return x.id === currentKoreksiId;}); if(!r){showToast('Data tidak ditemukan','error'); return;}
-    var examQuestions = getMyQuestions().filter(function(q){return q.mapel === r.mapel && q.kelas === r.kelas && q.type === 'uraian';}); var pg = r.nilaiPG||r.scorePG||r.pgScore||r.pg||0;
-    var uraianScoresObj = {}; var totalUraian = 0; var countUraian = 0;
-    examQuestions.forEach(function(q){ var inp = document.getElementById('urVal-'+q.id); var val = (inp && inp.value !== '') ? (parseFloat(inp.value) || 0) : 0; if(val < 0) val = 0; if(val > 100) val = 100; uraianScoresObj[q.id] = val; totalUraian += val; countUraian++; });
-    var avgUraian = countUraian > 0 ? Math.round(totalUraian / countUraian) : 0; var nilaiAkhir = Math.round((pg * 0.7) + (avgUraian * 0.3));
-    dbPAJ.collection('exam_results').doc(currentKoreksiId).update({ nilaiPG: Math.round(pg), scorePG: Math.round(pg), nilaiUraian: avgUraian, scoreUraian: avgUraian, essayScore: avgUraian, nilaiAkhir: nilaiAkhir, score: nilaiAkhir, finalScore: nilaiAkhir, totalScore: nilaiAkhir, uraianScores: uraianScoresObj, dikoreksi: true }).then(function(){ showToast('Nilai berhasil disimpan! Akhir: '+nilaiAkhir, 'success'); closeKoreksiModal(); }).catch(function(e){ showToast('Gagal menyimpan: '+e.message, 'error'); });
+    if(!currentKoreksiId) return; 
+    var r = results.find(function(x){return x.id === currentKoreksiId;}); 
+    if(!r){showToast('Data tidak ditemukan','error'); return;}
+    
+    var examQuestions = getMyQuestions().filter(function(q){return q.mapel === r.mapel && q.kelas === r.kelas && q.type === 'uraian';}); 
+    var pg = r.nilaiPG||r.scorePG||r.pgScore||r.pg||0;
+    var uraianScoresObj = {}; 
+    var totalUraian = 0; 
+    var countUraian = 0;
+    
+    examQuestions.forEach(function(q){ 
+        var inp = document.getElementById('urVal-'+q.id); 
+        var val = (inp && inp.value !== '') ? (parseFloat(inp.value) || 0) : 0; 
+        if(val < 0) val = 0; 
+        if(val > 100) val = 100; 
+        uraianScoresObj[q.id] = val; 
+        totalUraian += val; 
+        countUraian++; 
+    });
+    
+    var avgUraian = countUraian > 0 ? Math.round(totalUraian / countUraian) : 0; 
+    var nilaiAkhir = Math.round((pg * 0.7) + (avgUraian * 0.3));
+    
+    var updateData = { 
+        nilaiPG: Math.round(pg), 
+        scorePG: Math.round(pg), 
+        nilaiUraian: avgUraian, 
+        scoreUraian: avgUraian, 
+        essayScore: avgUraian, 
+        nilaiAkhir: nilaiAkhir, 
+        score: nilaiAkhir, 
+        finalScore: nilaiAkhir, 
+        totalScore: nilaiAkhir, 
+        uraianScores: uraianScoresObj, 
+        dikoreksi: true 
+    };
+
+    dbPAJ.collection('exam_results').doc(currentKoreksiId).update(updateData).then(function(){ 
+        showToast('Nilai berhasil disimpan & difinalisasi! Akhir: '+nilaiAkhir, 'success'); 
+        
+        // Update data memori lokal secara langsung
+        Object.assign(r, updateData);
+        
+        // Refresh tabel list di belakang modal agar nilai terbaru langsung tampil
+        renderKoreksiList();
+        
+        // Baru tutup modal setelah tabel di-refresh
+        closeKoreksiModal(); 
+
+    }).catch(function(e){ 
+        showToast('Gagal menyimpan: '+e.message, 'error'); 
+    });
 }
 
 function printNilaiAkhir(){
